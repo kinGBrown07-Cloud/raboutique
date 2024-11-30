@@ -20,7 +20,6 @@ export class LogService {
             winston.format.json()
         ),
         transports: [
-            // Rotation quotidienne des logs
             new winston.transports.DailyRotateFile({
                 filename: path.join(__dirname, '../../logs/error-%DATE%.log'),
                 datePattern: 'YYYY-MM-DD',
@@ -35,23 +34,22 @@ export class LogService {
         ]
     });
 
-    // Ajouter la sortie console en développement
-    if (process.env.NODE_ENV !== 'production') {
-        LogService.logger.add(new winston.transports.Console({
-            format: winston.format.simple()
-        }));
+    constructor() {
+        if (process.env.NODE_ENV !== 'production') {
+            LogService.logger.add(new winston.transports.Console({
+                format: winston.format.simple()
+            }));
+        }
     }
 
-    static async log(entry: LogEntry) {
+    static async log(entry: LogEntry): Promise<void> {
         try {
-            // Logger dans Winston
             this.logger.log({
                 level: entry.level,
                 message: `${entry.category}:${entry.action}`,
                 ...entry
             });
 
-            // Stocker dans la base de données
             await db.query(
                 `INSERT INTO system_logs (
                     level,
@@ -72,7 +70,6 @@ export class LogService {
             );
         } catch (error) {
             console.error('Logging error:', error);
-            // En cas d'erreur, on log au moins dans Winston
             this.logger.error('Logging error', { error });
         }
     }
@@ -85,7 +82,7 @@ export class LogService {
         userId?: number;
         limit?: number;
         offset?: number;
-    }) {
+    }): Promise<any[]> {
         try {
             let query = `
                 SELECT 
@@ -142,7 +139,7 @@ export class LogService {
         }
     }
 
-    static async getUserActivityLogs(userId: number) {
+    static async getUserActivityLogs(userId: number): Promise<any[]> {
         try {
             const query = `
                 SELECT *
@@ -160,7 +157,7 @@ export class LogService {
         }
     }
 
-    static async getPaymentLogs(transactionId: number) {
+    static async getPaymentLogs(transactionId: number): Promise<any[]> {
         try {
             const query = `
                 SELECT *
@@ -179,7 +176,7 @@ export class LogService {
         }
     }
 
-    static async getErrorLogs(startDate: string, endDate: string) {
+    static async getErrorLogs(startDate: string, endDate: string): Promise<any[]> {
         try {
             const query = `
                 SELECT 
