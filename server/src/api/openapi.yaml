@@ -1,0 +1,454 @@
+openapi: 3.0.0
+info:
+  title: REMag API
+  description: API publique de la marketplace agricole REMag
+  version: 1.0.0
+  contact:
+    name: Support REMag
+    email: support@remag.com
+    url: https://api.remag.com/docs
+
+servers:
+  - url: https://api.remag.com/v1
+    description: Production server
+  - url: https://staging-api.remag.com/v1
+    description: Staging server
+  - url: http://localhost:3000/v1
+    description: Development server
+
+security:
+  - ApiKeyAuth: []
+  - OAuth2: []
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    OAuth2:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: /oauth/token
+          scopes:
+            read:products: Lecture des produits
+            write:products: Écriture des produits
+            read:orders: Lecture des commandes
+            write:orders: Écriture des commandes
+
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        price:
+          type: number
+          format: float
+        quantity:
+          type: number
+        unit:
+          type: string
+        location:
+          $ref: '#/components/schemas/Location'
+        certification:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        seller:
+          $ref: '#/components/schemas/Seller'
+      required:
+        - name
+        - price
+        - quantity
+        - unit
+        - location
+
+    Location:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: float
+        longitude:
+          type: number
+          format: float
+        address:
+          type: string
+        city:
+          type: string
+        country:
+          type: string
+        postal_code:
+          type: string
+
+    Seller:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        rating:
+          type: number
+          format: float
+        verified:
+          type: boolean
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        product_id:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+        total_price:
+          type: number
+          format: float
+        status:
+          type: string
+          enum:
+            - pending
+            - confirmed
+            - shipped
+            - delivered
+            - cancelled
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        shipping_address:
+          $ref: '#/components/schemas/Location'
+        buyer:
+          $ref: '#/components/schemas/Buyer'
+
+    Buyer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+paths:
+  /products:
+    get:
+      summary: Liste des produits
+      description: Récupère la liste des produits avec pagination et filtres
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: category
+          schema:
+            type: string
+        - in: query
+          name: min_price
+          schema:
+            type: number
+        - in: query
+          name: max_price
+          schema:
+            type: number
+        - in: query
+          name: location
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste des produits
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      pages:
+                        type: integer
+                      current_page:
+                        type: integer
+                      per_page:
+                        type: integer
+        '400':
+          description: Paramètres invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      summary: Créer un produit
+      description: Ajoute un nouveau produit à la marketplace
+      security:
+        - OAuth2: [write:products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '201':
+          description: Produit créé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          description: Données invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Non autorisé
+        '403':
+          description: Accès refusé
+
+  /products/{id}:
+    get:
+      summary: Détails d'un produit
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Détails du produit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Produit non trouvé
+
+    put:
+      summary: Modifier un produit
+      security:
+        - OAuth2: [write:products]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+      responses:
+        '200':
+          description: Produit modifié
+        '400':
+          description: Données invalides
+        '401':
+          description: Non autorisé
+        '403':
+          description: Accès refusé
+        '404':
+          description: Produit non trouvé
+
+    delete:
+      summary: Supprimer un produit
+      security:
+        - OAuth2: [write:products]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Produit supprimé
+        '401':
+          description: Non autorisé
+        '403':
+          description: Accès refusé
+        '404':
+          description: Produit non trouvé
+
+  /orders:
+    get:
+      summary: Liste des commandes
+      security:
+        - OAuth2: [read:orders]
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+        - in: query
+          name: status
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Liste des commandes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  pagination:
+                    type: object
+                    properties:
+                      total:
+                        type: integer
+                      pages:
+                        type: integer
+                      current_page:
+                        type: integer
+                      per_page:
+                        type: integer
+        '401':
+          description: Non autorisé
+        '403':
+          description: Accès refusé
+
+    post:
+      summary: Créer une commande
+      security:
+        - OAuth2: [write:orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '201':
+          description: Commande créée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Données invalides
+        '401':
+          description: Non autorisé
+        '403':
+          description: Accès refusé
+
+  /orders/{id}:
+    get:
+      summary: Détails d'une commande
+      security:
+        - OAuth2: [read:orders]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Détails de la commande
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '401':
+          description: Non autorisé
+        '403':
+          description: Accès refusé
+        '404':
+          description: Commande non trouvée
+
+    put:
+      summary: Modifier une commande
+      security:
+        - OAuth2: [write:orders]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+      responses:
+        '200':
+          description: Commande modifiée
+        '400':
+          description: Données invalides
+        '401':
+          description: Non autorisé
+        '403':
+          description: Accès refusé
+        '404':
+          description: Commande non trouvée
